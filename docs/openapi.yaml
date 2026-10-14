@@ -1,0 +1,61 @@
+openapi: 3.1.0
+info:
+  title: SecretSentinel API
+  version: 0.1.0
+  description: Local-use MVP. No authentication; do not expose publicly.
+servers:
+  - url: http://localhost:8000
+paths:
+  /api/health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: API online
+  /api/scans:
+    get:
+      summary: List recent scans
+      responses:
+        '200':
+          description: Scan summaries
+    post:
+      summary: Upload ZIP and scan
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Scan result and sanitized findings
+        '400':
+          description: Invalid ZIP
+        '413':
+          description: Upload too large
+  /api/scans/{scan_id}:
+    parameters:
+      - in: path
+        name: scan_id
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Get scan and findings
+      responses:
+        '200':
+          description: Scan details
+        '404':
+          description: Not found
+    delete:
+      summary: Delete scan and findings
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          description: Not found
