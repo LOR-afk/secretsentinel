@@ -1,116 +1,400 @@
 # SecretSentinel — Source Code Secret Exposure Detector
 
-A locally runnable full-stack MVP: React/Vite dashboard, FastAPI REST API, PostgreSQL, Alembic migrations, and defensive ZIP scanning. Redis is unnecessary for this synchronous MVP.
+**A full-stack cybersecurity application for identifying potentially exposed credentials, API keys, authentication tokens, and private-key material in source code archives.**
 
-## Assumptions and scope
+SecretSentinel helps developers detect accidental credential exposure before source code reaches public repositories or production environments. The application uses a rule-based scanning engine, provides severity-classified findings, and maintains scan history without intentionally storing detected secret values.
 
-- Scan only code you own or have permission to inspect.
-- A single trusted local user is assumed. **There is no authentication or tenant isolation: do not publish this deployment to the public internet.**
-- Detects four pattern classes: AWS-style key IDs, GitHub-style tokens, private-key headers, and generic secret assignments.
-- Findings may be false positives or false negatives. This is not a replacement for mature scanners like Gitleaks or TruffleHog.
-- Source archives are held in process memory during scanning and never intentionally written to disk or database. The DB stores finding metadata only. Uploaded file names and file paths may still contain sensitive information.
-- The ZIP parser applies member-count and size limits and rejects traversal paths and symbolic links. The system is not a hardened malware sandbox: do not upload untrusted executable archives.
-- Secrets found in committed Git history are **not** scanned; only current text files in the ZIP are checked.
+## Technology Stack
 
-## File layout
+| Component | Technology |
+|---|---|
+| Frontend | React + Vite |
+| Backend | Python + FastAPI |
+| Database (Local) | MySQL/MariaDB via XAMPP |
+| ORM | SQLAlchemy |
+| Database Migrations | Alembic |
+| API Architecture | RESTful API |
+| Detection Engine | Python-based pattern matching |
+| API Documentation | Swagger UI / OpenAPI |
+| Version Control | Git + GitHub |
+
+The original project also supports a PostgreSQL-oriented Docker configuration. The locally tested setup uses XAMPP MySQL/MariaDB without Docker.
+
+## Features
+
+### 1. Source Code ZIP Scanning
+- Upload ZIP archives containing source code.
+- Analyze supported text-based source files.
+- Apply archive size and file-count limits.
+- Reject unsafe archive paths and symbolic links.
+
+### 2. Secret Exposure Detection
+
+The scanner provides four detection categories:
+
+- AWS-style access key identifiers
+- GitHub-style authentication tokens
+- Private-key headers
+- Generic hardcoded secret assignments
+
+Detection is rule-based and may produce false positives or false negatives.
+
+### 3. Security Findings
+- Identify potential credential exposure.
+- Classify findings by severity.
+- Display affected file paths and line numbers.
+- Associate findings with detection rules.
+- Provide descriptive security messages.
+
+### 4. Scan History
+- Save previous scan records.
+- Retrieve previous findings.
+- Display scan history in the dashboard.
+- Delete previous scan records.
+
+### 5. Security Dashboard
+- Total scans and findings indicators.
+- Available detection rule count.
+- ZIP upload interface.
+- Recent scan history.
+- Detailed findings table.
+
+### 6. Privacy-Conscious Reporting
+
+SecretSentinel is designed to retain finding metadata rather than raw source code or detected secret values.
+
+File names and paths may still contain sensitive information. The application should therefore be used only with trusted local access.
+
+## System Architecture
+
+```text
+React + Vite Dashboard
+          |
+          v
+FastAPI REST API
+          |
+          v
+ZIP Validation and Extraction
+          |
+          v
+Rule-Based Secret Detection
+          |
+          v
+SQLAlchemy ORM
+          |
+          v
+MySQL/MariaDB Database
+          |
+          v
+Scan History and Findings
+```
+
+## Project Structure
 
 ```text
 secretsentinel/
 ├── backend/
-│   ├── app/{config,database,models,schemas,scanner,main}.py
-│   ├── migrations/versions/001_initial.py
-│   ├── tests/{test_api,test_scanner}.py
+│   ├── app/
+│   │   ├── config.py
+│   │   ├── database.py
+│   │   ├── models.py
+│   │   ├── schemas.py
+│   │   ├── scanner.py
+│   │   └── main.py
+│   ├── migrations/
+│   │   └── versions/
+│   │       └── 001_initial.py
+│   ├── tests/
+│   │   ├── test_api.py
+│   │   └── test_scanner.py
+│   ├── .env
+│   ├── requirements.txt
+│   ├── requirements-dev.txt
+│   ├── alembic.ini
 │   ├── schema.sql
 │   ├── seed.py
 │   └── Dockerfile
 ├── frontend/
-│   ├── src/{App.jsx,main.jsx,style.css}
+│   ├── src/
+│   │   ├── App.jsx
+│   │   ├── main.jsx
+│   │   └── style.css
+│   ├── package.json
+│   ├── vite.config.js
 │   └── Dockerfile
-├── docs/{erd.md,openapi.yaml}
+├── docs/
+│   ├── erd.md
+│   └── openapi.yaml
 ├── docker-compose.yml
-└── .env.example
+├── .env.example
+├── .gitignore
+└── README.md
 ```
 
-## Quick start (Docker Desktop)
+## Installation — Windows Without Docker
+
+### Prerequisites
+
+- Python 3.11 or newer
+- Node.js and npm
+- XAMPP with MySQL/MariaDB
+- Visual Studio Code
+- Git
+
+### Step 1 — Clone the Repository
 
 ```bash
-docker compose up --build -d
+git clone https://github.com/LOR-afk/secretsentinel.git
+cd secretsentinel
 ```
 
-Then open:
+**Note:** The GitHub repository must exist before this command can be used. Alternatively, open an existing extracted project folder.
 
-- React dashboard: http://localhost:5173
-- FastAPI docs: http://localhost:8000/docs
-- API health: http://localhost:8000/api/health
+### Step 2 — Start XAMPP
 
-Run migrations separately when your schema changes:
+1. Open XAMPP Control Panel.
+2. Start MySQL.
+3. Start Apache if using phpMyAdmin.
+4. Open http://localhost/phpmyadmin/.
 
-```bash
-docker compose exec backend alembic upgrade head
+### Step 3 — Create Database
+
+Create a database named:
+
+```sql
+CREATE DATABASE IF NOT EXISTS secretsentinel
+CHARACTER SET utf8mb4
+COLLATE utf8mb4_unicode_ci;
 ```
 
-Seed one deterministic demo finding:
+Database tables are created through Alembic migrations.
 
-```bash
-docker compose exec backend python seed.py
+### Step 4 — Configure Backend
+
+Create `backend/.env`:
+
+```env
+DATABASE_URL=mysql+pymysql://root@127.0.0.1:3306/secretsentinel?charset=utf8mb4
+CORS_ORIGINS=http://localhost:5173
+MAX_UPLOAD_BYTES=5000000
 ```
 
-Stop:
+This example assumes default XAMPP development credentials and an empty root password. Adjust the connection string for your environment.
 
-```bash
-docker compose down
-```
+Never commit `.env` files to GitHub.
 
-To erase all demo database records: `docker compose down -v` (destructive).
+The backend must be configured to load this environment file through its settings module.
 
-## Local development without Docker for API
+### Step 5 — Install Python Dependencies
 
-Install PostgreSQL and create database/user matching `.env.example`; copy `.env.example` to `backend/.env`. From `backend/`:
+From the backend directory:
 
-```bash
+```powershell
+cd backend
 python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements-dev.txt
-alembic upgrade head
-uvicorn app.main:app --reload
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m pip install pymysql
 ```
 
-The frontend Vite proxy defaults to the Docker hostname `backend`. For running Vite directly on your PC, change `frontend/vite.config.js` target temporarily to `http://localhost:8000`.
+### Step 6 — Run Database Migrations
 
-```bash
+```powershell
+.\.venv\Scripts\python.exe -m alembic upgrade head
+```
+
+Expected database tables:
+
+```text
+secretsentinel
+├── alembic_version
+├── scans
+└── findings
+```
+
+### Step 7 — Start FastAPI
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+```
+
+Backend: http://127.0.0.1:8000
+
+Swagger documentation: http://127.0.0.1:8000/docs
+
+Health endpoint: http://127.0.0.1:8000/api/health
+
+### Step 8 — Configure React API Proxy
+
+Set the `/api` proxy target in `frontend/vite.config.js` to:
+
+```javascript
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    host: "127.0.0.1",
+    port: 5173,
+    proxy: {
+      "/api": {
+        target: "http://127.0.0.1:8000",
+        changeOrigin: true,
+      },
+    },
+  },
+});
+```
+
+### Step 9 — Start React
+
+Open another terminal:
+
+```powershell
 cd frontend
 npm install
 npm run dev
 ```
 
-## Tests
+Dashboard: http://localhost:5173
 
-From `backend/`:
+Keep the FastAPI and React terminals running simultaneously.
 
-```bash
-pip install -r requirements-dev.txt
-pytest -q
+## API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/health` | Check API health |
+| POST | `/api/scans` | Upload ZIP and create scan |
+| GET | `/api/scans` | List previous scans |
+| GET | `/api/scans/{scan_id}` | Retrieve scan findings |
+| DELETE | `/api/scans/{scan_id}` | Delete scan |
+
+Interactive API documentation is available at `/docs`.
+
+## Database Design
+
+### Scans
+Stores scan metadata, including filenames, scan status, number of files checked, total findings, and timestamps.
+
+### Findings
+Stores the detected rule, severity, affected source file, line number, and descriptive finding message.
+
+Each scan can contain multiple findings.
+
+Database schema documentation is available in `docs/erd.md`.
+
+## Testing
+
+### Automated Backend Tests
+
+From the backend directory:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
 ```
 
-Tests use an in-memory SQLite database, while actual deployment uses PostgreSQL. CI and production hardening should additionally test PostgreSQL migrations and concurrent scans.
+The original automated tests use an in-memory SQLite database for isolation. Passing these tests does not by itself verify MySQL compatibility.
 
-## Example scan
+### Manual Functional Testing
 
-Create a ZIP containing `example.py` with `password = "dummy_example_password_123"`. Use the dashboard or:
+1. Open the React dashboard.
+2. Upload a ZIP containing authorized test source files.
+3. Run the security scan.
+4. Review the detected findings.
+5. Refresh the dashboard.
+6. Confirm previous scans remain available.
+7. Verify scan metadata in the database.
+
+### Local MVP Verification
+
+The following functionality was demonstrated during local testing:
+
+- React dashboard loading successfully.
+- FastAPI server and Swagger UI running.
+- Frontend-to-backend API communication.
+- ZIP archive submission.
+- Detection of a simulated hardcoded credential.
+- Display of severity, rule, file path, and line number.
+- Scan history remaining available after browser refresh.
+
+Observed demo result:
+
+| Test | Result |
+|---|---|
+| Archive | `secretsentinel-demo.zip` |
+| Files checked | 2 |
+| Findings | 1 |
+| Detection rule | `GENERIC_SECRET` |
+| Severity | MEDIUM |
+| File | `src/config.py` |
+| Line | 2 |
+
+Further testing is recommended for malformed ZIP files, oversized archives, false positives, deletion behavior, and database privacy guarantees.
+
+## Optional Docker Setup
+
+The original Docker configuration targets PostgreSQL rather than the local XAMPP database.
+
+For environments configured with Docker Desktop and the corresponding PostgreSQL connection settings:
 
 ```bash
-curl -F 'file=@sample.zip' http://localhost:8000/api/scans
+docker compose up --build -d
 ```
 
-`GET /api/scans`, `GET /api/scans/{id}`, and `DELETE /api/scans/{id}` are also supported.
+Stop the containers:
 
-## API and schema
+```bash
+docker compose down
+```
 
-- OpenAPI document: `docs/openapi.yaml` (a compact route contract). FastAPI additionally generates the complete response-schema specification at `/openapi.json`.
-- Mermaid ERD and DBML: `docs/erd.md`.
-- PostgreSQL DDL: `backend/schema.sql`.
-- Alembic revision: `backend/migrations/versions/001_initial.py`.
+This deployment path has not yet been verified in the current Windows/XAMPP environment.
 
-## Security work before public deployment
+## Security Limitations
 
-Add authentication, authorization, TLS, request throttling, audit access controls, limits at reverse proxy, isolated workers, secret-safe logging, ZIP-bomb defenses, CI security tests and an explicit data-retention policy. Never persist raw code, raw tokens or matched line content. Migrate scanning to sandboxed async jobs before allowing arbitrary third-party archives.
+SecretSentinel is a defensive, educational MVP.
+
+- No user authentication or tenant isolation is currently implemented.
+- The API must not be exposed directly to the public internet.
+- The scanner is not a malware execution sandbox.
+- Detection rules are limited and can miss real secrets.
+- Historical Git commits are not scanned.
+- ZIP contents are processed during scanning.
+- Scan metadata, including filenames and paths, may contain sensitive information.
+- The application must not be treated as a replacement for professional secret-scanning tools.
+
+### Recommended Future Security Improvements
+
+- Authentication and authorization
+- Per-user scan isolation
+- Stronger detection rules and entropy analysis
+- Configurable scanning exclusions
+- Secret-safe logging
+- Request rate limiting
+- Isolated scanning workers
+- Secure report export
+- Audit logging and retention controls
+- CI/CD integration
+- Automated vulnerability and dependency scanning
+
+## Project Status
+
+**Version:** 0.1.0 — Functional Local MVP
+
+Core source code scanning, API communication, findings display, and scan history have been demonstrated locally.
+
+The project is not yet production-ready. Additional security hardening, integration testing, and public-deployment safeguards are required.
+
+## Developer
+
+**Lore Lindell Tamayo**  
+BS Information Technology Student  
+Full-Stack Web Development and Cybersecurity
+
+GitHub: https://github.com/LOR-afk
+
+Portfolio: https://lorelindell.vercel.app/
+
+## License
+
+No license has been selected yet. A license file should be added before declaring open-source redistribution permissions.
